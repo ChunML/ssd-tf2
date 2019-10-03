@@ -1,0 +1,13 @@
+__pycache__
+checkpoints
+weights
+data
+*.pyc
+*.h5
+*.ckpt
+*.zip
+*.jpg
+*.png
+dataset
+images
+venv
