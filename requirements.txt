@@ -17,7 +17,7 @@ Markdown==3.1.1
 matplotlib==3.1.1
 numpy==1.17.1
 opt-einsum==3.0.1
-Pillow==6.1.0
+Pillow==6.2.0
 pipenv==2018.11.26
 protobuf==3.9.1
 pycrypto==2.6.1
