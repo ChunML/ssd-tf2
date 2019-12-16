@@ -114,6 +114,7 @@ class VOCDataset():
         """
         for index in range(len(self.ids)):
             # img, orig_shape = self._get_image(index)
+            filename = self.ids[index]
             img = self._get_image(index)
             w, h = img.size
             boxes, labels = self._get_annotation(index, (h, w))
@@ -134,7 +135,7 @@ class VOCDataset():
             gt_confs, gt_locs = compute_target(
                 self.default_boxes, boxes, labels)
 
-            yield img, gt_confs, gt_locs
+            yield filename, img, gt_confs, gt_locs
 
 
 def create_batch_generator(root_dir, year, default_boxes,
@@ -148,11 +149,13 @@ def create_batch_generator(root_dir, year, default_boxes,
     info = {
         'idx_to_name': voc.idx_to_name,
         'name_to_idx': voc.name_to_idx,
-        'length': len(voc)
+        'length': len(voc),
+        'image_dir': voc.image_dir,
+        'anno_dir': voc.anno_dir
     }
 
     dataset = tf.data.Dataset.from_generator(
-        voc.generate, (tf.float32, tf.int64, tf.float32))
+        voc.generate, (tf.string, tf.float32, tf.int64, tf.float32))
 
     if do_shuffle:
         dataset = dataset.shuffle(40).batch(batch_size)

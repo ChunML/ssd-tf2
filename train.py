@@ -5,6 +5,7 @@ import sys
 import time
 import yaml
 
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from data import create_batch_generator
 from anchor import generate_default_boxes
 from network import create_ssd
@@ -42,11 +43,14 @@ def train_step(imgs, gt_confs, gt_locs, ssd, criterion, optimizer):
             confs, locs, gt_confs, gt_locs)
 
         loss = conf_loss + loc_loss
+        l2_loss = [tf.nn.l2_loss(t) for t in ssd.trainable_variables]
+        l2_loss = args.weight_decay * tf.math.reduce_sum(l2_loss)
+        loss += l2_loss
 
     gradients = tape.gradient(loss, ssd.trainable_variables)
     optimizer.apply_gradients(zip(gradients, ssd.trainable_variables))
 
-    return loss, conf_loss, loc_loss
+    return loss, conf_loss, loc_loss, l2_loss
 
 
 if __name__ == '__main__':
@@ -79,22 +83,41 @@ if __name__ == '__main__':
 
     criterion = create_losses(args.neg_ratio, NUM_CLASSES)
 
+    steps_per_epoch = info['length'] // args.batch_size
+
+    lr_fn = ExponentialDecay(
+        args.initial_lr,
+        decay_steps= steps_per_epoch * args.num_epochs ,
+        decay_rate=0.5)
     optimizer = tf.keras.optimizers.SGD(
-        learning_rate=args.initial_lr,
-        momentum=args.momentum, decay=args.weight_decay)
+        learning_rate=lr_fn,
+        momentum=args.momentum)
+
+    train_log_dir = 'logs/train'
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
     for epoch in range(args.num_epochs):
         avg_loss = 0.0
         avg_conf_loss = 0.0
         avg_loc_loss = 0.0
         start = time.time()
-        for i, (imgs, gt_confs, gt_locs) in enumerate(batch_generator):
-            loss, conf_loss, loc_loss = train_step(
+        for i, (_, imgs, gt_confs, gt_locs) in enumerate(batch_generator):
+            loss, conf_loss, loc_loss, l2_loss = train_step(
                 imgs, gt_confs, gt_locs, ssd, criterion, optimizer)
+            with train_summary_writer.as_default():
+                tf.summary.scalar(
+                    'loss', loss,
+                    step=epoch * steps_per_epoch + i)
+                tf.summary.scalar(
+                    'conf_loss', conf_loss,
+                    step=epoch * steps_per_epoch + i)
+                tf.summary.scalar(
+                    'loc_loss', loc_loss,
+                    step=epoch * steps_per_epoch + i)
             avg_loss = (avg_loss * i + loss.numpy()) / (i + 1)
             avg_conf_loss = (avg_conf_loss * i + conf_loss.numpy()) / (i + 1)
             avg_loc_loss = (avg_loc_loss * i + loc_loss.numpy()) / (i + 1)
-            if (i + 1) % 50 == 0:
+            if (i + 1) % 2 == 0:
                 print('Epoch: {} Batch {} Time: {:.2}s | Loss: {:.4f} Conf: {:.4f} Loc: {:.4f}'.format(
                     epoch + 1, i + 1, time.time() - start, avg_loss, avg_conf_loss, avg_loc_loss))
 

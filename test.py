@@ -12,6 +12,7 @@ from data import create_batch_generator
 from image_utils import ImageVisualizer
 from losses import create_losses
 from network import create_ssd
+from PIL import Image
 
 
 parser = argparse.ArgumentParser()
@@ -102,14 +103,28 @@ if __name__ == '__main__':
         print('The program is exiting...')
         sys.exit()
 
-    visualizer = ImageVisualizer(info['idx_to_name'], save_dir='images')
+    os.makedirs('outputs/images', exist_ok=True)
+    os.makedirs('outputs/detects', exist_ok=True)
+    visualizer = ImageVisualizer(info['idx_to_name'], save_dir='outputs/images')
 
-    for i, (imgs, gt_confs, gt_locs) in enumerate(tqdm(batch_generator, total=info['length'], desc='Testing...', unit='images')):
-        img = imgs[0].numpy() + 1.0
-        img *= 127
-        img = img.astype(np.uint8)
+    for i, (filename, imgs, gt_confs, gt_locs) in enumerate(
+        tqdm(batch_generator, total=info['length'],
+             desc='Testing...', unit='images')):
         boxes, classes, scores = predict(imgs, default_boxes)
+        filename = filename.numpy()[0].decode()
+        original_image = Image.open(
+            os.path.join(info['image_dir'], '{}.jpg'.format(filename)))
+        boxes *= original_image.size * 2
+        visualizer.save_image(
+            original_image, boxes, classes, '{}.jpg'.format(filename))
 
-        boxes *= img.shape[0]
+        log_file = os.path.join('outputs/detects', '{}.txt'.format(filename))
 
-        visualizer.save_image(img, boxes, classes, '{}.jpg'.format(i))
+        with open(log_file, 'w') as f:
+            log = []
+            for cls, box, score in zip(classes, boxes, scores):
+                cls_name = info['idx_to_name'][cls - 1]
+                log.append(
+                    ','.join([cls_name, *[str(c) for c in box], str(score)]))
+            log = '\n'.join(log)
+            f.write(log)

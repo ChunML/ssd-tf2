@@ -10,4 +10,7 @@ data
 *.png
 dataset
 images
+detects
+events.out.tfevents*
 venv
+.vscode
