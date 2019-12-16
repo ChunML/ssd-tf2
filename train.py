@@ -5,7 +5,7 @@ import sys
 import time
 import yaml
 
-from tensorflow.keras.optimizers.schedules import ExponentialDecay
+from tensorflow.keras.optimizers.schedules import PiecewiseConstantDecay
 from data import create_batch_generator
 from anchor import generate_default_boxes
 from network import create_ssd
@@ -66,11 +66,11 @@ if __name__ == '__main__':
 
     default_boxes = generate_default_boxes(config)
 
-    batch_generator, info = create_batch_generator(
+    batch_generator, val_generator, info = create_batch_generator(
         args.data_dir, args.data_year, default_boxes,
         config['image_size'],
         args.batch_size, args.num_batches,
-        do_shuffle=False, augmentation=['flip'])  # the patching algorithm is currently causing bottleneck sometimes
+        mode='train', augmentation=['flip'])  # the patching algorithm is currently causing bottleneck sometimes
     
     try:
         ssd = create_ssd(NUM_CLASSES, args.arch,
@@ -85,16 +85,19 @@ if __name__ == '__main__':
 
     steps_per_epoch = info['length'] // args.batch_size
 
-    lr_fn = ExponentialDecay(
-        args.initial_lr,
-        decay_steps= steps_per_epoch * args.num_epochs ,
-        decay_rate=0.5)
+    lr_fn = PiecewiseConstantDecay(
+        boundaries=[int(steps_per_epoch * args.num_epochs * 2 / 3),
+                    int(steps_per_epoch * args.num_epochs * 5 / 6)],
+        values=[args.initial_lr, args.initial_lr * 0.1, args.initial_lr * 0.01])
+    
     optimizer = tf.keras.optimizers.SGD(
         learning_rate=lr_fn,
         momentum=args.momentum)
 
     train_log_dir = 'logs/train'
+    val_log_dir = 'logs/val'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    val_summary_writer = tf.summary.create_file_writer(val_log_dir)
 
     for epoch in range(args.num_epochs):
         avg_loss = 0.0
@@ -104,22 +107,34 @@ if __name__ == '__main__':
         for i, (_, imgs, gt_confs, gt_locs) in enumerate(batch_generator):
             loss, conf_loss, loc_loss, l2_loss = train_step(
                 imgs, gt_confs, gt_locs, ssd, criterion, optimizer)
-            with train_summary_writer.as_default():
-                tf.summary.scalar(
-                    'loss', loss,
-                    step=epoch * steps_per_epoch + i)
-                tf.summary.scalar(
-                    'conf_loss', conf_loss,
-                    step=epoch * steps_per_epoch + i)
-                tf.summary.scalar(
-                    'loc_loss', loc_loss,
-                    step=epoch * steps_per_epoch + i)
             avg_loss = (avg_loss * i + loss.numpy()) / (i + 1)
             avg_conf_loss = (avg_conf_loss * i + conf_loss.numpy()) / (i + 1)
             avg_loc_loss = (avg_loc_loss * i + loc_loss.numpy()) / (i + 1)
             if (i + 1) % 2 == 0:
                 print('Epoch: {} Batch {} Time: {:.2}s | Loss: {:.4f} Conf: {:.4f} Loc: {:.4f}'.format(
                     epoch + 1, i + 1, time.time() - start, avg_loss, avg_conf_loss, avg_loc_loss))
+
+        avg_val_loss = 0.0
+        avg_val_conf_loss = 0.0
+        avg_val_loc_loss = 0.0
+        for i, (_, imgs, gt_confs, gt_locs) in enumerate(val_generator):
+            val_confs, val_locs = ssd(imgs)
+            val_conf_loss, val_loc_loss = criterion(
+                val_confs, val_locs, gt_confs, gt_locs)
+            val_loss = val_conf_loss + val_loc_loss
+            avg_val_loss = (avg_val_loss * i + val_loss.numpy()) / (i + 1)
+            avg_val_conf_loss = (avg_val_conf_loss * i + val_conf_loss.numpy()) / (i + 1)
+            avg_val_loc_loss = (avg_val_loc_loss * i + val_loc_loss.numpy()) / (i + 1)
+
+        with train_summary_writer.as_default():
+            tf.summary.scalar('loss', avg_loss, step=epoch)
+            tf.summary.scalar('conf_loss', avg_conf_loss, step=epoch)
+            tf.summary.scalar('loc_loss', avg_loc_loss, step=epoch)
+
+        with val_summary_writer.as_default():
+            tf.summary.scalar('loss', avg_val_loss, step=epoch)
+            tf.summary.scalar('conf_loss', avg_val_conf_loss, step=epoch)
+            tf.summary.scalar('loc_loss', avg_val_loc_loss, step=epoch)
 
         if (epoch + 1) % 10 == 0:
             ssd.save_weights(

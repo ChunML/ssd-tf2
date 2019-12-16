@@ -7,6 +7,7 @@ import random
 
 from box_utils import compute_target
 from image_utils import random_patching, horizontal_flip
+from functools import partial
 
 
 class VOCDataset():
@@ -40,6 +41,9 @@ class VOCDataset():
 
         if num_examples != -1:
             self.ids = self.ids[:num_examples]
+
+        self.train_ids = self.ids[:int(len(self.ids) * 0.75)]
+        self.val_ids = self.ids[int(len(self.ids) * 0.75):]
 
         if augmentation == None:
             self.augmentation = ['original']
@@ -100,7 +104,7 @@ class VOCDataset():
 
         return np.array(boxes, dtype=np.float32), np.array(labels, dtype=np.int64)
 
-    def generate(self):
+    def generate(self, subset=None):
         """ The __getitem__ method
             so that the object can be iterable
 
@@ -112,9 +116,15 @@ class VOCDataset():
             boxes: tensor of shape (num_gt, 4)
             labels: tensor of shape (num_gt,)
         """
-        for index in range(len(self.ids)):
+        if subset == 'train':
+            indices = self.train_ids
+        elif subset == 'val':
+            indices = self.val_ids
+        else:
+            indices = self.ids
+        for index in range(len(indices)):
             # img, orig_shape = self._get_image(index)
-            filename = self.ids[index]
+            filename = indices[index]
             img = self._get_image(index)
             w, h = img.size
             boxes, labels = self._get_annotation(index, (h, w))
@@ -140,7 +150,7 @@ class VOCDataset():
 
 def create_batch_generator(root_dir, year, default_boxes,
                            new_size, batch_size, num_batches,
-                           do_shuffle=False,
+                           mode,
                            augmentation=None):
     num_examples = batch_size * num_batches if num_batches > 0 else -1
     voc = VOCDataset(root_dir, year, default_boxes,
@@ -154,13 +164,20 @@ def create_batch_generator(root_dir, year, default_boxes,
         'anno_dir': voc.anno_dir
     }
 
-    dataset = tf.data.Dataset.from_generator(
-        voc.generate, (tf.string, tf.float32, tf.int64, tf.float32))
+    if mode == 'train':
+        train_gen = partial(voc.generate, subset='train')
+        train_dataset = tf.data.Dataset.from_generator(
+            train_gen, (tf.string, tf.float32, tf.int64, tf.float32))
+        val_gen = partial(voc.generate, subset='val')
+        val_dataset = tf.data.Dataset.from_generator(
+            val_gen, (tf.string, tf.float32, tf.int64, tf.float32))
 
-    if do_shuffle:
-        dataset = dataset.shuffle(40).batch(batch_size)
+        train_dataset = train_dataset.shuffle(40).batch(batch_size)
+        val_dataset = val_dataset.batch(batch_size)
+
+        return train_dataset.take(num_batches), val_dataset.take(-1), info
     else:
+        dataset = tf.data.Dataset.from_generator(
+            voc.generate, (tf.string, tf.float32, tf.int64, tf.float32))
         dataset = dataset.batch(batch_size)
-
-    return dataset.take(num_batches), info
-
+        return dataset.take(num_batches), info

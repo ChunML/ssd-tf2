@@ -91,7 +91,7 @@ if __name__ == '__main__':
     batch_generator, info = create_batch_generator(
         args.data_dir, args.data_year, default_boxes,
         config['image_size'],
-        BATCH_SIZE, args.num_examples)
+        BATCH_SIZE, args.num_examples, mode='test')
 
     try:
         ssd = create_ssd(NUM_CLASSES, args.arch,
