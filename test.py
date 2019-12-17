@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from anchor import generate_default_boxes
 from box_utils import decode, compute_nms
-from data import create_batch_generator
+from voc_data import create_batch_generator
 from image_utils import ImageVisualizer
 from losses import create_losses
 from network import create_ssd
@@ -118,13 +118,12 @@ if __name__ == '__main__':
         visualizer.save_image(
             original_image, boxes, classes, '{}.jpg'.format(filename))
 
-        log_file = os.path.join('outputs/detects', '{}.txt'.format(filename))
+        log_file = os.path.join('outputs/detects', '{}.txt')
 
-        with open(log_file, 'w') as f:
-            log = []
-            for cls, box, score in zip(classes, boxes, scores):
-                cls_name = info['idx_to_name'][cls - 1]
-                log.append(
-                    ','.join([cls_name, *[str(c) for c in box], str(score)]))
-            log = '\n'.join(log)
-            f.write(log)
+        for cls, box, score in zip(classes, boxes, scores):
+            cls_name = info['idx_to_name'][cls - 1]
+            with open(log_file.format(cls_name), 'a') as f:
+                f.write('{} {} {} {} {} {}\n'.format(
+                    filename,
+                    score,
+                    *[coord for coord in box]))
