@@ -68,6 +68,8 @@ def voc_eval(det_path, anno_path, cls_name, iou_thresh=0.5, use_07_metric=False)
     cls_gts = {}
     npos = 0
     for image_id in image_ids:
+        if image_id in cls_gts.keys():
+            continue
         gts[image_id] = get_annotation(anno_path.format(image_id))
         R = [obj for obj in gts[image_id] if obj['name'] == cls_name]
         gt_boxes = np.array([x['bbox'] for x in R])
@@ -96,9 +98,9 @@ def voc_eval(det_path, anno_path, cls_name, iou_thresh=0.5, use_07_metric=False)
 
         if gt_box.size > 0:
             ixmin = np.maximum(gt_box[:, 0], box[0])
-            ixmax = np.maximum(gt_box[:, 2], box[2])
+            ixmax = np.minimum(gt_box[:, 2], box[2])
             iymin = np.maximum(gt_box[:, 1], box[1])
-            iymax = np.maximum(gt_box[:, 3], box[3])
+            iymax = np.minimum(gt_box[:, 3], box[3])
             iw = np.maximum(ixmax - ixmin + 1.0, 0.0)
             ih = np.maximum(iymax - iymin + 1.0, 0.0)
             inters = iw * ih
