@@ -13,7 +13,7 @@ from losses import create_losses
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data-dir', default='../dataset')
+parser.add_argument('--data-dir', default='./dataset')
 parser.add_argument('--data-year', default='2007')
 parser.add_argument('--arch', default='ssd300')
 parser.add_argument('--batch-size', default=32, type=int)

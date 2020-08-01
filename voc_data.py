@@ -10,7 +10,7 @@ from image_utils import random_patching, horizontal_flip
 from functools import partial
 
 
-class VOCDataset():
+class VOCDataset:
     """ Class for VOC Dataset
 
     Attributes:

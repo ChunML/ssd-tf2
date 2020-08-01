@@ -25,6 +25,7 @@ def compute_iou(boxes_a, boxes_b):
     Returns:
         overlap: tensor (num_boxes_a, num_boxes_b)
     """
+    assert boxes_a.shape[0] == 8732, "Not 8732"
     # boxes_a => num_boxes_a, 1, 4
     boxes_a = tf.expand_dims(boxes_a, 1)
 
@@ -58,11 +59,12 @@ def compute_target(default_boxes, gt_boxes, gt_labels, iou_threshold=0.5):
     # in order to compute overlap with gt boxes
     transformed_default_boxes = transform_center_to_corner(default_boxes)
     iou = compute_iou(transformed_default_boxes, gt_boxes)
+    """AM- IOU table is created. Let for 3 faces table shape will be 8473 X 3"""
 
     best_gt_iou = tf.math.reduce_max(iou, 1)
     best_gt_idx = tf.math.argmax(iou, 1)
 
-    best_default_iou = tf.math.reduce_max(iou, 0)
+    # best_default_iou = tf.math.reduce_max(iou, 0)
     best_default_idx = tf.math.argmax(iou, 0)
 
     best_gt_idx = tf.tensor_scatter_nd_update(

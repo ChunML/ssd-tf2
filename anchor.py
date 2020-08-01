@@ -21,6 +21,7 @@ def generate_default_boxes(config):
     fm_sizes = config['fm_sizes']
     ratios = config['ratios']
 
+    """It creates all the possible coordinates for fm_sizes"""
     for m, fm_size in enumerate(fm_sizes):
         for i, j in itertools.product(range(fm_size), repeat=2):
             cx = (j + 0.5) / fm_size

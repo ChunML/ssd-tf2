@@ -10,7 +10,6 @@ from anchor import generate_default_boxes
 from box_utils import decode, compute_nms
 from voc_data import create_batch_generator
 from image_utils import ImageVisualizer
-from losses import create_losses
 from network import create_ssd
 from PIL import Image
 
@@ -40,8 +39,8 @@ def predict(imgs, default_boxes):
     locs = tf.squeeze(locs, 0)
 
     confs = tf.math.softmax(confs, axis=-1)
-    classes = tf.math.argmax(confs, axis=-1)
-    scores = tf.math.reduce_max(confs, axis=-1)
+    # classes = tf.math.argmax(confs, axis=-1)
+    # scores = tf.math.reduce_max(confs, axis=-1)
 
     boxes = decode(default_boxes, locs)
 
@@ -87,6 +86,8 @@ if __name__ == '__main__':
         raise ValueError('Unknown architecture: {}'.format(args.arch))
 
     default_boxes = generate_default_boxes(config)
+    print(default_boxes)
+    print(default_boxes.shape)
 
     batch_generator, info = create_batch_generator(
         args.data_dir, args.data_year, default_boxes,
