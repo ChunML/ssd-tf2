@@ -19,7 +19,7 @@ numpy==1.17.1
 opt-einsum==3.0.1
 Pillow==6.2.0
 pipenv==2018.11.26
-protobuf==3.9.1
+protobuf==3.15.0
 pycrypto==2.6.1
 pygobject==3.26.1
 pyparsing==2.4.2
